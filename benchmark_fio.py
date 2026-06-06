@@ -59,6 +59,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--size", default="512M", help="Rozmiar pliku testowego")
     parser.add_argument("--iodepth", type=int, default=16, help="Głębokość kolejki I/O")
     parser.add_argument("--numjobs", type=int, default=4, help="Liczba równoległych wątków fio")
+    parser.add_argument(
+        "--io-mode",
+        choices=("auto", "direct", "buffered"),
+        default="auto",
+        help="Tryb I/O fio: auto = direct z fallbackiem, direct = tylko O_DIRECT, buffered = bez O_DIRECT",
+    )
     return parser.parse_args()
 
 
@@ -259,6 +265,7 @@ def run_fio_test(
     output_dir: Path,
     summary_csv: Path,
     run_as_user: bool,
+    io_mode: str,
 ) -> None:
     description = TEST_DESCRIPTIONS.get(test_name, test_name)
     json_out = output_dir / f"{label}_{test_name}.json"
@@ -290,27 +297,37 @@ def run_fio_test(
             *test_case.extra_params,
         ]
 
-    attempt_mode = "direct"
     fio_log.write_text("", encoding="utf-8")
 
-    try:
-        try:
-            completed = run_fio_command(build_fio_cmd(direct=True), run_as_user=run_as_user)
-            write_fio_log(fio_log, "attempt: direct", completed)
-        except subprocess.CalledProcessError as exc:
-            write_fio_log(fio_log, "attempt: direct", exc)
-            if not fio_needs_buffered_retry(exc):
-                raise
+    if io_mode == "buffered":
+        attempt_modes = ["buffered"]
+    elif io_mode == "direct":
+        attempt_modes = ["direct"]
+    else:
+        attempt_modes = ["direct", "buffered"]
 
-            attempt_mode = "buffered fallback"
-            print(f"{YELLOW}  [INFO]{NC} {label} – O_DIRECT nie jest obsługiwane, ponawiam w trybie buforowanym")
-            completed = run_fio_command(build_fio_cmd(direct=False), run_as_user=run_as_user)
-            write_fio_log(fio_log, "attempt: buffered", completed)
+    try:
+        completed = None
+        attempt_mode = attempt_modes[0]
+        for attempt_mode in attempt_modes:
+            try:
+                completed = run_fio_command(build_fio_cmd(direct=(attempt_mode == "direct")), run_as_user=run_as_user)
+                write_fio_log(fio_log, f"attempt: {attempt_mode}", completed)
+                break
+            except subprocess.CalledProcessError as exc:
+                write_fio_log(fio_log, f"attempt: {attempt_mode}", exc)
+                if io_mode != "auto" or attempt_mode != "direct" or not fio_needs_buffered_retry(exc):
+                    raise
+
+                print(f"{YELLOW}  [INFO]{NC} {label} – O_DIRECT nie jest obsługiwane, ponawiam w trybie buforowanym")
+
+        if completed is None:
+            raise subprocess.CalledProcessError(returncode=1, cmd=build_fio_cmd(direct=(attempt_modes[0] == "direct")))
     except subprocess.CalledProcessError:
         print(f"{RED}  [BŁĄD] fio nie powiódł się. Sprawdź: {fio_log}{NC}")
         with summary_csv.open("a", encoding="utf-8", newline="") as handle:
             writer = csv.writer(handle)
-            writer.writerow([label, test_name, f"{description} [{attempt_mode}]", *("ERROR" for _ in range(8))])
+            writer.writerow([label, test_name, f"{description} [{io_mode}]", *("ERROR" for _ in range(8))])
         return
 
     with json_out.open("r", encoding="utf-8") as handle:
@@ -329,10 +346,11 @@ def run_fio_test(
     read_lat_us = read.get("lat_ns", {}).get("mean", 0) / 1000
     write_lat_us = write.get("lat_ns", {}).get("mean", 0) / 1000
 
-    if attempt_mode != "direct":
-        description = f"{description} [{attempt_mode}]"
+    effective_mode = attempt_mode if io_mode != "auto" or attempt_mode != "buffered" else "buffered fallback"
+    if effective_mode != "direct":
+        description = f"{description} [{effective_mode}]"
 
-    print(f"  Tryb I/O: {attempt_mode}")
+    print(f"  Tryb I/O: {effective_mode}")
     print(f"  Odczyt:  {read_iops:>8.0f} IOPS  |  {read_bw_mbs:>7.1f} MB/s  |  lat: {read_lat_us:>8.1f} µs")
     print(f"  Zapis:   {write_iops:>8.0f} IOPS  |  {write_bw_mbs:>7.1f} MB/s  |  lat: {write_lat_us:>8.1f} µs")
     print(f"  CPU:     usr={cpu_usr:.1f}%  sys={cpu_sys:.1f}%")
@@ -369,6 +387,7 @@ def run_all_tests(
     output_dir: Path,
     summary_csv: Path,
     run_as_user: bool,
+    io_mode: str,
 ) -> None:
     print_header(f"Testowanie: {label} ({path})")
 
@@ -395,6 +414,7 @@ def run_all_tests(
             output_dir=output_dir,
             summary_csv=summary_csv,
             run_as_user=run_as_user,
+            io_mode=io_mode,
         )
 
 
@@ -475,6 +495,7 @@ def main() -> int:
                     output_dir=output_dir,
                     summary_csv=summary_csv,
                     run_as_user=(label == "fscrypt"),
+                    io_mode=args.io_mode,
                 )
             else:
                 print(f"\n{RED}[POMINIĘTO]{NC} {label} – {path} niedostępny lub niezamontowany")
