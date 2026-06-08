@@ -1,0 +1,41 @@
+Mechanism,Test,Description,Read_IOPS,Write_IOPS,Read_BW_MBs,Write_BW_MBs,Read_Lat_us,Write_Lat_us,CPU_usr_%,CPU_sys_%
+Raw I/O,seq_write_4k,Sequential write 4k,0,5450,0.00,21.29,0.0,11736.5,0.3,47.2
+Raw I/O,seq_read_4k,Sequential read 4k,6358,0,24.83,0.00,10060.9,0.0,0.3,57.2
+Raw I/O,seq_write_1M,Sequential write 1M,0,1370,0.00,1369.96,0.0,46686.5,1.1,41.8
+Raw I/O,seq_read_1M,Sequential read 1M,1207,0,1207.32,0.00,52939.3,0.0,0.2,31.2
+Raw I/O,rand_write_4k,Random write 4k,0,3201,0.00,12.50,0.0,19985.0,0.2,34.5
+Raw I/O,rand_read_4k,Random read 4k,3533,0,13.80,0.00,18106.7,0.0,0.2,26.5
+Raw I/O,rand_write_1M,Random write 1M,0,1349,0.00,1349.27,0.0,47402.1,1.1,41.0
+Raw I/O,rand_read_1M,Random read 1M,1193,0,1193.10,0.00,53592.4,0.0,0.2,31.1
+Raw I/O,mixed_70r_30w,Mixed 70%R/30%W 1M,839,360,839.14,360.00,38852.4,87042.6,0.5,41.5
+Raw I/O,mixed_50r_50w,Mixed 50%R/50%W 1M,605,604,604.72,603.82,33539.9,72302.3,0.7,43.7
+LUKS,seq_write_4k,Sequential write 4k,0,17167,0.00,67.06,0.0,3726.9,0.9,6.5
+LUKS,seq_read_4k,Sequential read 4k,6047,0,23.62,0.00,10576.6,0.0,0.2,56.2
+LUKS,seq_write_1M,Sequential write 1M,0,1305,0.00,1305.19,0.0,49017.9,1.0,4.2
+LUKS,seq_read_1M,Sequential read 1M,1177,0,1176.68,0.00,54339.2,0.0,0.3,20.9
+LUKS,rand_write_4k,Random write 4k,0,2853,0.00,11.14,0.0,22427.3,0.2,5.8
+LUKS,rand_read_4k,Random read 4k,3416,0,13.34,0.00,18725.6,0.0,0.2,22.5
+LUKS,rand_write_1M,Random write 1M,0,1343,0.00,1342.88,0.0,47646.6,1.0,3.8
+LUKS,rand_read_1M,Random read 1M,1214,0,1213.72,0.00,52681.0,0.0,0.3,22.4
+LUKS,mixed_70r_30w,Mixed 70%R/30%W 1M,894,383,893.97,383.48,40498.3,72345.9,0.6,23.4
+LUKS,mixed_50r_50w,Mixed 50%R/50%W 1M,626,633,626.13,632.52,32301.8,69139.9,0.7,21.3
+eCryptfs,seq_write_4k,Sequential write 4k [buffered fallback],0,114356,0.00,446.70,0.0,558.9,3.3,87.1
+eCryptfs,seq_read_4k,Sequential read 4k [buffered fallback],910493,0,3556.61,0.00,69.7,0.0,13.3,58.6
+eCryptfs,seq_write_1M,Sequential write 1M [buffered fallback],0,464,0.00,464.01,0.0,137588.8,0.5,85.1
+eCryptfs,seq_read_1M,Sequential read 1M [buffered fallback],2264,0,2263.98,0.00,28107.0,0.0,0.7,46.4
+eCryptfs,rand_write_4k,Random write 4k [buffered fallback],0,100559,0.00,392.81,0.0,605.6,2.1,72.8
+eCryptfs,rand_read_4k,Random read 4k [buffered fallback],1963,0,7.67,0.00,32573.9,0.0,1.0,6.3
+eCryptfs,rand_write_1M,Random write 1M [buffered fallback],0,474,0.00,473.64,0.0,128480.3,0.7,77.5
+eCryptfs,rand_read_1M,Random read 1M [buffered fallback],17937,0,17937.47,0.00,3542.3,0.0,0.9,92.0
+eCryptfs,mixed_70r_30w,Mixed 70%R/30%W 1M [buffered fallback],1108,471,1108.41,470.83,38011.3,45616.1,0.9,80.3
+eCryptfs,mixed_50r_50w,Mixed 50%R/50%W 1M [buffered fallback],481,490,481.25,489.98,61994.8,69244.7,0.9,83.0
+fscrypt,seq_write_4k,Sequential write 4k,0,261970,0.00,1023.32,0.0,243.9,4.1,25.3
+fscrypt,seq_read_4k,Sequential read 4k,2893650,0,11303.32,0.00,21.9,0.0,18.0,70.0
+fscrypt,seq_write_1M,Sequential write 1M,0,2105,0.00,2105.25,0.0,29404.3,1.7,27.7
+fscrypt,seq_read_1M,Sequential read 1M,19955,0,19955.23,0.00,3203.1,0.0,3.0,90.8
+fscrypt,rand_write_4k,Random write 4k,0,280132,0.00,1094.27,0.0,182.2,3.3,25.0
+fscrypt,rand_read_4k,Random read 4k,2222,0,8.68,0.00,28784.9,0.0,0.3,23.5
+fscrypt,rand_write_1M,Random write 1M,0,2459,0.00,2458.55,0.0,25881.3,2.0,28.0
+fscrypt,rand_read_1M,Random read 1M,20678,0,20677.51,0.00,3088.4,0.0,2.2,95.2
+fscrypt,mixed_70r_30w,Mixed 70%R/30%W 1M,4330,1854,4330.03,1853.64,10190.6,10668.3,1.4,28.1
+fscrypt,mixed_50r_50w,Mixed 50%R/50%W 1M,1883,1878,1883.16,1877.72,17036.1,16927.0,1.5,28.7
