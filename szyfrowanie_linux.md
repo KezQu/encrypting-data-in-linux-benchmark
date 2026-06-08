@@ -391,27 +391,29 @@ ecryptfs-umount-private
 ### 4.1 Przygotowanie systemu plików ext4 z obsługą szyfrowania
 
 ```bash
-# Tworzenie nowego obrazu dysku dla testów fscrypt (osobny od LUKS)
-dd if=/dev/zero of=/tmp/fscrypt_test.img bs=1M count=1024 status=progress
-
-# Mapowanie na loop device
-FSCRYPT_LOOP=$(sudo losetup --find --show /tmp/fscrypt_test.img)
-echo "fscrypt loop device: $FSCRYPT_LOOP"
+# Weryfikacja dostępności dysku testowego
+# W VirtualBox dodaj drugi wirtualny dysk (Settings > Storage) – pojawi się jako /dev/sdc
+lsblk /dev/sdc
 
 # Tworzenie systemu plików ext4 z włączoną obsługą szyfrowania.
 # Flaga -O encrypt aktywuje feature szyfrowania w superbloku ext4.
 # Bez tej flagi fscrypt nie będzie działał na tym systemie plików.
-sudo mkfs.ext4 -O encrypt -L "fscrypt_vol" "$FSCRYPT_LOOP"
+# UWAGA: polecenie nadpisuje wszystkie dane na /dev/sdc!
+sudo mkfs.ext4 -O encrypt -L "fscrypt_vol" /dev/sdc
 
 # Weryfikacja – sprawdzamy czy feature encrypt jest włączony
-sudo tune2fs -l "$FSCRYPT_LOOP" | grep -i encrypt
+sudo tune2fs -l /dev/sdc | grep -i encrypt
 
 # Montowanie systemu plików
 sudo mkdir -p /mnt/fscrypt_test
-sudo mount "$FSCRYPT_LOOP" /mnt/fscrypt_test
+sudo mount /dev/sdc /mnt/fscrypt_test
 
 # Ustawienie własności dla bieżącego użytkownika
 sudo chown $USER:$USER /mnt/fscrypt_test
+
+# Opcjonalnie: automatyczne montowanie po restarcie (przez etykietę wolumenu)
+# Dodaj do /etc/fstab:
+# LABEL=fscrypt_vol  /mnt/fscrypt_test  ext4  defaults  0 2
 ```
 
 ### 4.2 Inicjalizacja fscrypt
