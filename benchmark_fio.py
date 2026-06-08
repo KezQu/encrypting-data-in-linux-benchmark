@@ -15,21 +15,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-BS_RAND = "4k"
-BS_SEQ = "1M"
 ODIRECT_ERROR_RE = re.compile(
     r"(does not support direct=1/buffered=0|destination does not support O_DIRECT|not support O_DIRECT)",
     re.IGNORECASE,
 )
-TEST_DESCRIPTIONS = {
-    "seq_write": f"Sequential write {BS_SEQ}",
-    "seq_read": f"Sequential read {BS_SEQ}",
-    "rand_write_4k": "Random write 4K",
-    "rand_read_4k": "Random read 4K",
-    "mixed_70r_30w": "Mixed 70%R/30%W 4K",
-    "rand_write_64k": "Random write 64K",
-    "rand_read_64k": "Random read 64K",
-}
+
 
 MOUNT_LUKS = Path("/mnt/luks_test")
 LUKS_DEVICE = Path("/dev/sdb")
@@ -47,9 +37,36 @@ ECRYPTFS_ENCRYPTED = Path("/mnt/ecryptfs_encrypted")
 @dataclass
 class TestCase:
     name: str
+    desc: str
     rw: str
     bs: str
     extra_params: list[str]
+
+
+TEST_PLAN = [
+    TestCase("seq_write_4k", "Sequential write 4k", "write", "4k", []),
+    TestCase("seq_read_4k", "Sequential read 4k", "read", "4k", []),
+    TestCase("seq_write_1M", "Sequential write 1M", "write", "1M", []),
+    TestCase("seq_read_1M", "Sequential read 1M", "read", "1M", []),
+    TestCase("rand_write_4k", "Random write 4k", "randwrite", "4k", []),
+    TestCase("rand_read_4k", "Random read 4k", "randread", "4k", []),
+    TestCase("rand_write_1M", "Random write 1M", "randwrite", "1M", []),
+    TestCase("rand_read_1M", "Random read 1M", "randread", "1M", []),
+    TestCase(
+        "mixed_70r_30w",
+        "Mixed 70%R/30%W 1M",
+        "randrw",
+        "1M",
+        ["--rwmixread=70"],
+    ),
+    TestCase(
+        "mixed_50r_50w",
+        "Mixed 50%R/50%W 1M",
+        "randrw",
+        "1M",
+        ["--rwmixread=50"],
+    ),
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -277,7 +294,6 @@ def prepare_rows(output_dir: Path) -> Path:
 def run_fio_test(
     label: str,
     path: Path,
-    test_name: str,
     test_case: TestCase,
     file_size: str,
     runtime: int,
@@ -287,10 +303,10 @@ def run_fio_test(
     summary_csv: Path,
     io_mode: str,
 ) -> None:
-    description = TEST_DESCRIPTIONS.get(test_name, test_name)
+    description = test_case.desc
     safe_label = label.replace("/", "_").replace(" ", "_")
-    json_out = output_dir / f"{safe_label}_{test_name}.json"
-    filename = path / f"fio_testfile_{test_name}"
+    json_out = output_dir / f"{safe_label}_{test_case.name}.json"
+    filename = path / f"fio_testfile_{test_case.name}"
 
     print(f"\n[FIO] {label} - {description}")
     print(
@@ -300,7 +316,7 @@ def run_fio_test(
     def build_fio_cmd(attempt_mode: str) -> list[str]:
         return [
             "fio",
-            f"--name={label}_{test_name}",
+            f"--name={label}_{test_case.name}",
             f"--filename={filename}",
             f"--rw={test_case.rw}",
             f"--bs={test_case.bs}",
@@ -311,6 +327,7 @@ def run_fio_test(
             f"--numjobs={numjobs}",
             "--ioengine=libaio",
             f"--direct={1 if attempt_mode == 'direct' else 0}",
+            "--invalidate=1",
             "--group_reporting",
             "--randrepeat=0",
             "--norandommap",
@@ -351,7 +368,7 @@ def run_fio_test(
             writer.writerow(
                 [
                     label,
-                    test_name,
+                    test_case.name,
                     f"{description} [{io_mode}]",
                     *("ERROR" for _ in range(8)),
                 ]
@@ -396,7 +413,7 @@ def run_fio_test(
         writer.writerow(
             [
                 label,
-                test_name,
+                test_case.name,
                 description,
                 f"{read_iops:.0f}",
                 f"{write_iops:.0f}",
@@ -425,24 +442,10 @@ def run_all_tests(
 ) -> None:
     print_header(f"Testing: {label} ({path})")
 
-    test_plan = [
-        ("seq_write", TestCase("seq_write", "write", BS_SEQ, [])),
-        ("seq_read", TestCase("seq_read", "read", BS_SEQ, [])),
-        ("rand_write_4k", TestCase("rand_write_4k", "randwrite", BS_RAND, [])),
-        ("rand_read_4k", TestCase("rand_read_4k", "randread", BS_RAND, [])),
-        (
-            "mixed_70r_30w",
-            TestCase("mixed_70r_30w", "randrw", BS_RAND, ["--rwmixread=70"]),
-        ),
-        ("rand_write_64k", TestCase("rand_write_64k", "randwrite", "64k", [])),
-        ("rand_read_64k", TestCase("rand_read_64k", "randread", "64k", [])),
-    ]
-
-    for test_name, test_case in test_plan:
+    for test_case in TEST_PLAN:
         run_fio_test(
             label=label,
             path=path,
-            test_name=test_name,
             test_case=test_case,
             file_size=file_size,
             runtime=runtime,
@@ -457,20 +460,12 @@ def run_all_tests(
 def fill_missing_rows(summary_csv: Path, label: str) -> None:
     with summary_csv.open("a", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
-        for test_name in (
-            "seq_write",
-            "seq_read",
-            "rand_write_4k",
-            "rand_read_4k",
-            "mixed_70r_30w",
-            "rand_write_64k",
-            "rand_read_64k",
-        ):
+        for test_case in TEST_PLAN:
             writer.writerow(
                 [
                     label,
-                    test_name,
-                    TEST_DESCRIPTIONS.get(test_name, test_name),
+                    test_case.name,
+                    test_case.desc,
                     *(["N/A"] * 8),
                 ]
             )
