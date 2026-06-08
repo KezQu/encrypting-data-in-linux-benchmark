@@ -15,6 +15,18 @@ from pathlib import Path
 TEST_FILE = "dd_benchmark_tmp.bin"
 CSV_HEADER = ["Mechanism", "Operation", "Speed (MBs)"]
 
+MOUNT_LUKS = Path("/mnt/luks_test")
+LUKS_DEVICE = Path("/dev/sdb")
+LUKS_MAPPER_DEVICE = Path("/dev/mapper/luks_test")
+
+MOUNT_ECRYPTFS = Path("/mnt/ecryptfs_upper")
+
+MOUNT_FSCRYPT_BASE = Path("/mnt/fscrypt_test")
+MOUNT_FSCRYPT = Path("/mnt/fscrypt_test/private_data")
+FSCRYPT_DEVICE = Path("/dev/sdc")
+
+ECRYPTFS_ENCRYPTED = Path("/mnt/ecryptfs_encrypted")
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -46,24 +58,12 @@ def print_header(title: str) -> None:
     print()
 
 
-def run_cmd(command: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        command,
-        check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-
-
 def drop_caches() -> None:
     subprocess.run(["sync"], check=True)
-    if os.geteuid() == 0:
-        Path("/proc/sys/vm/drop_caches").write_text("3\n", encoding="utf-8")
-        return
-
-    run_cmd(
+    subprocess.run(
         ["sudo", "sh", "-c", "echo 3 > /proc/sys/vm/drop_caches"],
+        text=True,
+        check=True,
     )
 
 
@@ -76,8 +76,11 @@ def invoking_user_command(command: list[str]) -> list[str]:
 
 
 def run_dd(command: list[str]) -> subprocess.CompletedProcess[str]:
-    return run_cmd(
+    return subprocess.run(
         invoking_user_command(command),
+        check=True,
+        text=True,
+        capture_output=True,
     )
 
 
@@ -107,9 +110,9 @@ def test_write(
     file_size_mb: int,
     block_size: str,
     repeat: int,
-    results_file: Path,
+    summary_file: Path,
 ) -> None:
-    target = path / TEST_FILE
+    filename = path / TEST_FILE
     speeds: list[float] = []
 
     print(f"[WRITE] {label} - {file_size_mb} MB, block {block_size}")
@@ -121,7 +124,7 @@ def test_write(
                 [
                     "dd",
                     "if=/dev/urandom",
-                    f"of={target}",
+                    f"of={filename}",
                     f"bs={block_size}",
                     f"count={file_size_mb}",
                     "conv=fsync",
@@ -131,11 +134,11 @@ def test_write(
             speeds.append(speed)
             print(f"\tRun {iteration}/{repeat}: {speed} MB/s")
     finally:
-        target.unlink(missing_ok=True)
+        filename.unlink(missing_ok=True)
 
     avg = average_speed(speeds)
     print(f"\tMean: {avg} MB/s")
-    with results_file.open("a", encoding="utf-8", newline="") as handle:
+    with summary_file.open("a", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow([label, "WRITE", avg])
 
@@ -146,9 +149,9 @@ def test_read(
     file_size_mb: int,
     block_size: str,
     repeat: int,
-    results_file: Path,
+    summary_file: Path,
 ) -> None:
-    target = path / TEST_FILE
+    filename = path / TEST_FILE
     speeds: list[float] = []
 
     print(f"[READ] {label} - {file_size_mb} MB, block {block_size}")
@@ -158,7 +161,7 @@ def test_read(
             [
                 "dd",
                 "if=/dev/zero",
-                f"of={target}",
+                f"of={filename}",
                 f"bs={block_size}",
                 f"count={file_size_mb}",
                 "conv=fsync",
@@ -170,7 +173,7 @@ def test_read(
             completed = run_dd(
                 [
                     "dd",
-                    f"if={target}",
+                    f"if={filename}",
                     "of=/dev/null",
                     f"bs={block_size}",
                 ]
@@ -179,67 +182,58 @@ def test_read(
             speeds.append(speed)
             print(f"\tRun {iteration}/{repeat}: {speed} MB/s")
     finally:
-        target.unlink(missing_ok=True)
+        filename.unlink(missing_ok=True)
 
     avg = average_speed(speeds)
     print(f"\tMean: {avg} MB/s")
-    with results_file.open("a", encoding="utf-8", newline="") as handle:
+    with summary_file.open("a", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow([label, "READ", avg])
 
 
-def mountpoint_exists(path: Path) -> bool:
-    try:
-        return path.is_mount()
-    except OSError:
-        return False
-
-
-def ensure_luks_mounted(mount_point: Path) -> bool:
-    if mountpoint_exists(mount_point):
+def ensure_luks_mounted() -> bool:
+    if os.path.ismount(MOUNT_LUKS):
         return True
 
-    mapper_device = Path("/dev/mapper/luks_test")
-    if not mapper_device.exists():
-        source_device = Path("/dev/sdb")
-        if not source_device.exists():
-            print(f"[SKIPPED] LUKS - missing {source_device}")
+    if not LUKS_MAPPER_DEVICE.exists():
+        if not LUKS_DEVICE.exists():
+            print(f"[SKIPPED] LUKS - missing {LUKS_DEVICE}")
             return False
 
         try:
-            run_cmd(
-                ["sudo", "cryptsetup", "open", str(source_device), "luks_test"]
+            subprocess.run(
+                ["sudo", "cryptsetup", "open", str(LUKS_DEVICE), "luks_test"],
+                check=True,
             )
         except subprocess.CalledProcessError as exc:
-            print(
-                f"[SKIPPED] LUKS - cannot open {source_device}: {exc.stderr.strip() if exc.stderr else exc}"
-            )
+            print(f"[SKIPPED] LUKS - failed to open {LUKS_DEVICE}: {exc}")
             return False
 
-    if not mapper_device.exists():
+    if not LUKS_MAPPER_DEVICE.exists():
         print("[SKIPPED] LUKS - missing /dev/mapper/luks_test")
         return False
 
-    mount_point.mkdir(parents=True, exist_ok=True)
+    MOUNT_LUKS.mkdir(parents=True, exist_ok=True)
     try:
-        run_cmd(["sudo", "mount", str(mapper_device), str(mount_point)])
-    except subprocess.CalledProcessError as exc:
-        print(
-            f"[SKIPPED] LUKS - cannot mount {mount_point}: {exc.stderr.strip() if exc.stderr else exc}"
+        subprocess.run(
+            ["sudo", "mount", "/dev/mapper/luks_test", str(MOUNT_LUKS)],
+            check=True,
         )
+    except subprocess.CalledProcessError as exc:
+        print(f"[SKIPPED] LUKS - failed to mount {MOUNT_LUKS}: {exc}")
         return False
     return True
 
 
-def ensure_ecryptfs_mounted(mount_point: Path, encrypted_dir: Path) -> bool:
-    if mountpoint_exists(mount_point):
+def ensure_ecryptfs_mounted() -> bool:
+    if os.path.ismount(MOUNT_ECRYPTFS):
         return True
 
-    if not encrypted_dir.exists():
-        print(f"[SKIPPED] eCryptfs - encrypted dir missing {encrypted_dir}")
+    if not ECRYPTFS_ENCRYPTED.exists():
+        print(f"[SKIPPED] eCryptfs - encrypted dir missing {MOUNT_ECRYPTFS}")
         return False
 
-    mount_point.mkdir(parents=True, exist_ok=True)
+    MOUNT_ECRYPTFS.mkdir(parents=True, exist_ok=True)
     try:
         subprocess.run(
             [
@@ -247,44 +241,44 @@ def ensure_ecryptfs_mounted(mount_point: Path, encrypted_dir: Path) -> bool:
                 "mount",
                 "-t",
                 "ecryptfs",
-                str(encrypted_dir),
-                str(mount_point),
+                str(ECRYPTFS_ENCRYPTED),
+                str(MOUNT_ECRYPTFS),
                 "-o",
                 "ecryptfs_cipher=aes,ecryptfs_key_bytes=32,ecryptfs_passthrough=n,ecryptfs_enable_filename_crypto=y",
             ],
             check=True,
         )
     except subprocess.CalledProcessError as exc:
-        print(f"[SKIPPED] eCryptfs - cannot mount {mount_point}: {exc}")
+        print(f"[SKIPPED] eCryptfs - failed to mount {MOUNT_ECRYPTFS}: {exc}")
         return False
     return True
 
 
-def ensure_fscrypt_mounted(mount_point: Path) -> bool:
-    encrypted_dir = mount_point / "private_data"
-    source_device = Path("/dev/sdc")
-
-    if not mountpoint_exists(mount_point):
-        if not source_device.exists():
-            print(f"[SKIPPED] fscrypt - missing {source_device}")
+def ensure_fscrypt_mounted() -> bool:
+    if not os.path.ismount(MOUNT_FSCRYPT_BASE):
+        if not FSCRYPT_DEVICE.exists():
+            print(f"[SKIPPED] fscrypt - missing {FSCRYPT_DEVICE}")
             return False
 
-        mount_point.mkdir(parents=True, exist_ok=True)
+        MOUNT_FSCRYPT_BASE.mkdir(parents=True, exist_ok=True)
         try:
-            run_cmd(["sudo", "mount", str(source_device), str(mount_point)])
+            subprocess.run(
+                ["sudo", "mount", str(FSCRYPT_DEVICE), str(MOUNT_FSCRYPT_BASE)],
+                check=True,
+            )
         except subprocess.CalledProcessError as exc:
             print(
-                f"[SKIPPED] fscrypt - cannot mount {mount_point}: {exc.stderr.strip() if exc.stderr else exc}"
+                f"[SKIPPED] fscrypt - failed to mount {MOUNT_FSCRYPT_BASE}: {exc.stderr.strip() if exc.stderr else exc}"
             )
             return False
 
-    if not encrypted_dir.is_dir():
-        print(f"[SKIPPED] fscrypt - missing {encrypted_dir}")
+    if not MOUNT_FSCRYPT.is_dir():
+        print(f"[SKIPPED] fscrypt - missing {MOUNT_FSCRYPT}")
         return False
 
     try:
         subprocess.run(
-            invoking_user_command(["fscrypt", "unlock", str(encrypted_dir)]),
+            invoking_user_command(["fscrypt", "unlock", str(MOUNT_FSCRYPT)]),
             check=True,
             stderr=subprocess.PIPE,
             text=True,
@@ -294,13 +288,13 @@ def ensure_fscrypt_mounted(mount_point: Path) -> bool:
         if "already unlocked" in stderr:
             return True
         print(
-            f"[SKIPPED] fscrypt - cannot unlock {encrypted_dir}: {stderr or exc}"
+            f"[SKIPPED] fscrypt - failed to unlock {MOUNT_FSCRYPT}: {stderr or exc}"
         )
         return False
 
-    if not os.access(encrypted_dir, os.W_OK):
+    if not os.access(MOUNT_FSCRYPT, os.W_OK):
         print(
-            f"[SKIPPED] fscrypt - {encrypted_dir} still not available after unlock"
+            f"[SKIPPED] fscrypt - {MOUNT_FSCRYPT} still not available after unlock"
         )
         return False
 
@@ -308,29 +302,29 @@ def ensure_fscrypt_mounted(mount_point: Path) -> bool:
 
 
 def lock_fscrypt_directory() -> bool:
-    encrypted_dir = Path("/mnt/fscrypt_test/private_data")
-
     try:
-        run_cmd(invoking_user_command(["fscrypt", "lock", str(encrypted_dir)]))
+        subprocess.run(
+            invoking_user_command(["fscrypt", "lock", str(MOUNT_FSCRYPT)]),
+            check=True,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
     except subprocess.CalledProcessError as exc:
         stderr = exc.stderr.strip() if exc.stderr else ""
         if "already locked" not in stderr:
-            print(f"[WARN] fscrypt - cannot lock {encrypted_dir}: {stderr}")
+            print(f"[WARN] fscrypt - failed to lock {MOUNT_FSCRYPT}: {stderr}")
     return True
 
 
 def unmount_if_needed(path: Path) -> bool:
-    run_cmd(
-        ["sudo", "umount", str(path)],
-    )
+    subprocess.run(["sudo", "umount", str(path)], check=False)
     return True
 
 
-def print_results(results_file: Path) -> None:
+def print_summary(summary_file: Path) -> None:
     rows: list[list[str]] = []
-    with results_file.open("r", encoding="utf-8", newline="") as handle:
-        reader = csv.reader(handle)
-        rows = list(reader)
+    with summary_file.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.reader(handle))
 
     widths = [
         max(len(row[index]) for row in rows) for index in range(len(rows[0]))
@@ -343,8 +337,8 @@ def print_results(results_file: Path) -> None:
         )
 
 
-def append_na(results_file: Path, mechanism: str) -> None:
-    with results_file.open("a", encoding="utf-8", newline="") as handle:
+def append_na(summary_file: Path, mechanism: str) -> None:
+    with summary_file.open("a", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow([mechanism, "WRITE", "N/A"])
         writer.writerow([mechanism, "READ", "N/A"])
@@ -358,12 +352,9 @@ def available_space_mb(path: Path) -> int:
 def main() -> int:
     args = parse_args()
 
-    mount_luks = Path("/mnt/luks_test")
-    mount_ecryptfs = Path("/mnt/ecryptfs_decrypted")
-    mount_fscrypt = Path("/mnt/fscrypt_test")
-    results_file = Path(f"dd_results_{datetime.now():%Y%m%d_%H%M%S}.csv")
+    summary_file = Path(f"dd_results_{datetime.now():%Y%m%d_%H%M%S}.csv")
 
-    with results_file.open("w", encoding="utf-8", newline="") as handle:
+    with summary_file.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(CSV_HEADER)
 
@@ -385,7 +376,7 @@ def main() -> int:
                     args.size,
                     block_size,
                     args.repeat,
-                    results_file,
+                    summary_file,
                 )
                 test_read(
                     work_dir,
@@ -393,16 +384,16 @@ def main() -> int:
                     args.size,
                     block_size,
                     args.repeat,
-                    results_file,
+                    summary_file,
                 )
             tear_down()
         except Exception:
             print(f"[SKIPPED] {test_name} - {work_dir} not available")
             for block_size in args.block:
-                append_na(results_file, f"{test_name} [{block_size}]")
+                append_na(summary_file, f"{test_name} [{block_size}]")
 
     print_header("Benchmark dd")
-    print(f"\tResults file: {results_file}")
+    print(f"\tResults file: {summary_file}")
     print(f"\tTest file size: {args.size} MB")
     print(f"\tBlock sizes: {', '.join(args.block)}")
     print(f"\tNumber of repetitions: {args.repeat}")
@@ -417,38 +408,31 @@ def main() -> int:
     )
     run_test(
         "2. LUKS (Block encryption)",
-        mount_luks,
+        MOUNT_LUKS,
         "LUKS",
-        lambda: (
-            ensure_luks_mounted(mount_luks) and mountpoint_exists(mount_luks)
-        ),
-        lambda: unmount_if_needed(mount_luks),
+        lambda: ensure_luks_mounted(),
+        lambda: unmount_if_needed(MOUNT_LUKS),
     )
     run_test(
         "3. eCryptfs (Per-file encryption)",
-        mount_ecryptfs,
+        MOUNT_ECRYPTFS,
         "eCryptfs",
-        lambda: (
-            ensure_ecryptfs_mounted(
-                mount_ecryptfs, Path("/mnt/ecryptfs_encrypted")
-            )
-            and mountpoint_exists(mount_ecryptfs)
-        ),
-        lambda: unmount_if_needed(mount_ecryptfs),
+        lambda: ensure_ecryptfs_mounted(),
+        lambda: unmount_if_needed(MOUNT_ECRYPTFS),
     )
     run_test(
         "4. fscrypt (Per-file encryption)",
-        mount_fscrypt,
+        MOUNT_FSCRYPT,
         "fscrypt",
-        lambda: ensure_fscrypt_mounted(mount_fscrypt),
+        lambda: ensure_fscrypt_mounted(),
         lambda: (
-            lock_fscrypt_directory() and unmount_if_needed(mount_fscrypt),
+            lock_fscrypt_directory() and unmount_if_needed(MOUNT_FSCRYPT_BASE),
         ),
     )
 
-    print_header("RESULTS:")
-    print_results(results_file)
-    print(f"\nSaved in: {results_file}")
+    print_header("SUMMARY:")
+    print_summary(summary_file)
+    print(f"\nSaved in: {summary_file}")
 
     return 0
 
