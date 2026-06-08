@@ -234,14 +234,14 @@ sudo modprobe ecryptfs
 # Weryfikacja załadowania modułu
 lsmod | grep ecryptfs
 
-# Tworzenie katalogu źródłowego (lower) i docelowego (upper/mountpoint)
-# lower  – tu przechowywane są zaszyfrowane pliki na dysku
-# upper  – tu aplikacje widzą odszyfrowane dane (mountpoint eCryptfs)
-sudo mkdir -p /mnt/ecryptfs_lower
-sudo mkdir -p /mnt/ecryptfs_upper
+# Tworzenie katalogu źródłowego (encrypted) i docelowego (decrypted/mountpoint)
+# encrypted  – tu przechowywane są zaszyfrowane pliki na dysku
+# decrypted  – tu aplikacje widzą odszyfrowane dane (mountpoint eCryptfs)
+sudo mkdir -p /mnt/ecryptfs_encrypted
+sudo mkdir -p /mnt/ecryptfs_decrypted
 
 # Ustawienie właściwości katalogów dla bieżącego użytkownika
-sudo chown $USER:$USER /mnt/ecryptfs_lower /mnt/ecryptfs_upper
+sudo chown $USER:$USER /mnt/ecryptfs_encrypted /mnt/ecryptfs_decrypted
 ```
 
 ### 3.2 Montowanie systemu eCryptfs
@@ -255,8 +255,8 @@ sudo chown $USER:$USER /mnt/ecryptfs_lower /mnt/ecryptfs_upper
 # ecryptfs_enable_filename_crypto=y – szyfruj też nazwy plików
 # ecryptfs_fnek_sig        – podpis klucza szyfrowania nazw plików (podawany automatycznie)
 sudo mount -t ecryptfs \
-    /mnt/ecryptfs_lower \
-    /mnt/ecryptfs_upper \
+    /mnt/ecryptfs_encrypted \
+    /mnt/ecryptfs_decrypted \
     -o ecryptfs_cipher=aes,\
 ecryptfs_key_bytes=32,\
 ecryptfs_passthrough=n,\
@@ -267,47 +267,47 @@ ecryptfs_enable_filename_crypto=y
 
 # Sprawdzenie zamontowanego systemu plików
 mount | grep ecryptfs
-df -h /mnt/ecryptfs_upper
+df -h /mnt/ecryptfs_decrypted
 ```
 
 ### 3.3 Testowanie szyfrowania plików
 
 ```bash
 # Tworzenie pliku testowego w katalogu eCryptfs (dane widoczne odszyfrowane)
-echo "Tajne dane testowe eCryptfs" > /mnt/ecryptfs_upper/tajne.txt
-cat /mnt/ecryptfs_upper/tajne.txt   # Powinien wyświetlić czytelny tekst
+echo "Tajne dane testowe eCryptfs" > /mnt/ecryptfs_decrypted/tajne.txt
+cat /mnt/ecryptfs_decrypted/tajne.txt   # Powinien wyświetlić czytelny tekst
 
 # Sprawdzenie jak plik wygląda w katalogu dolnym (zaszyfrowanym)
 # Nazwa pliku powinna być zaszyfrowana (ciąg znaków base64-like)
-ls -la /mnt/ecryptfs_lower/
-# Próba odczytania zaszyfrowanego pliku wprost z lower dir – powinny być śmieci
-sudo hexdump -C /mnt/ecryptfs_lower/$(ls /mnt/ecryptfs_lower/ | head -1) | head -20
+ls -la /mnt/ecryptfs_encrypted/
+# Próba odczytania zaszyfrowanego pliku wprost z encrypted dir – powinny być śmieci
+sudo hexdump -C /mnt/ecryptfs_encrypted/$(ls /mnt/ecryptfs_encrypted/ | head -1) | head -20
 
 # Test zapisu większego pliku dla benchmarku
-time dd if=/dev/urandom of=/mnt/ecryptfs_upper/testfile.bin bs=1M count=100 status=progress
+time dd if=/dev/urandom of=/mnt/ecryptfs_decrypted/testfile.bin bs=1M count=100 status=progress
 
 # Test odczytu
 sync && echo 3 | sudo tee /proc/sys/vm/drop_caches
-time dd if=/mnt/ecryptfs_upper/testfile.bin of=/dev/null bs=1M status=progress
+time dd if=/mnt/ecryptfs_decrypted/testfile.bin of=/dev/null bs=1M status=progress
 ```
 
 ### 3.4 Odmontowanie eCryptfs
 
 ```bash
-# Odmontowanie eCryptfs – po tym dane są dostępne tylko w zaszyfrowanej formie w lower
-sudo umount /mnt/ecryptfs_upper
+# Odmontowanie eCryptfs – po tym dane są dostępne tylko w zaszyfrowanej formie w encrypted
+sudo umount /mnt/ecryptfs_decrypted
 
-# Weryfikacja – próba odczytu przez upper dir powinna się nie powieść
-ls /mnt/ecryptfs_upper  # Katalog powinien być pusty lub niedostępny
+# Weryfikacja – próba odczytu przez decrypted dir powinna się nie powieść
+ls /mnt/ecryptfs_decrypted  # Katalog powinien być pusty lub niedostępny
 
-# Dane zaszyfrowane nadal widoczne w lower (ale nieczytelne)
-ls -la /mnt/ecryptfs_lower/
+# Dane zaszyfrowane nadal widoczne w encrypted (ale nieczytelne)
+ls -la /mnt/ecryptfs_encrypted/
 ```
 
 ### 3.5 Ponowne montowanie istniejącego systemu eCryptfs
 
 ```bash
-# Po odmontowaniu eCryptfs zaszyfrowane dane pozostają w /mnt/ecryptfs_lower.
+# Po odmontowaniu eCryptfs zaszyfrowane dane pozostają w /mnt/ecryptfs_encrypted.
 # Aby ponownie uzyskać dostęp do plików, należy ponownie zamontować system.
 # WAŻNE: należy użyć dokładnie tych samych parametrów kryptograficznych co przy
 # pierwszym montowaniu (ten sam szyfr, rozmiar klucza, opcje).
@@ -316,8 +316,8 @@ ls -la /mnt/ecryptfs_lower/
 # System zapyta o hasło – podaj to samo hasło co przy pierwszym montowaniu.
 # Przy pytaniu o parametry kryptograficzne zatwierdź te same wartości ('yes').
 sudo mount -t ecryptfs \
-    /mnt/ecryptfs_lower \
-    /mnt/ecryptfs_upper \
+    /mnt/ecryptfs_encrypted \
+    /mnt/ecryptfs_decrypted \
     -o ecryptfs_cipher=aes,\
 ecryptfs_key_bytes=32,\
 ecryptfs_passthrough=n,\
@@ -335,8 +335,8 @@ ecryptfs-add-passphrase --fnek
 # Krok 2: Montowanie z podpisami kluczy – bez interaktywnego pytania o hasło.
 # Zastąp wartości ecryptfs_sig i ecryptfs_fnek_sig podpisami z poprzedniego kroku.
 sudo mount -t ecryptfs \
-    /mnt/ecryptfs_lower \
-    /mnt/ecryptfs_upper \
+    /mnt/ecryptfs_encrypted \
+    /mnt/ecryptfs_decrypted \
     -o ecryptfs_cipher=aes,\
 ecryptfs_key_bytes=32,\
 ecryptfs_passthrough=n,\
@@ -346,7 +346,7 @@ ecryptfs_fnek_sig=eeff55667788aabb
 
 # Weryfikacja – pliki powinny być czytelne po ponownym zamontowaniu
 mount | grep ecryptfs
-ls /mnt/ecryptfs_upper/
+ls /mnt/ecryptfs_decrypted/
 ```
 
 ### 3.6 Użycie ecryptfs-setup-private (integracja z katalogiem domowym)
@@ -354,7 +354,7 @@ ls /mnt/ecryptfs_upper/
 ```bash
 # Wygodniejsza metoda – konfiguracja szyfrowanego katalogu prywatnego dla użytkownika.
 # Ta metoda integruje się z PAM – katalog jest automatycznie montowany przy logowaniu.
-# ecryptfs-setup-private tworzy ~/.Private (lower) i ~/Private (upper/mountpoint)
+# ecryptfs-setup-private tworzy ~/.Private (encrypted) i ~/Private (decrypted/mountpoint)
 ecryptfs-setup-private
 # Postępuj zgodnie z instrukcjami – podaj hasło logowania i hasło szyfrowania
 
@@ -511,7 +511,7 @@ TEST_FILE="benchmark_test.bin"
 
 # Punkty montowania (ustaw zgodnie z wcześniej skonfigurowanymi wolumenami)
 MOUNT_LUKS="/mnt/luks_test"
-MOUNT_ECRYPTFS="/mnt/ecryptfs_upper"
+MOUNT_ECRYPTFS="/mnt/ecryptfs_decrypted"
 MOUNT_FSCRYPT="/mnt/fscrypt_test/private_data"
 MOUNT_BASELINE="/tmp/baseline_test"
 
@@ -660,7 +660,7 @@ SUMMARY_CSV="${OUTPUT_DIR}/summary.csv"
 declare -A MOUNT_POINTS=(
     ["Baseline"]="/tmp/fio_baseline"
     ["LUKS"]="/mnt/luks_test"
-    ["eCryptfs"]="/mnt/ecryptfs_upper"
+    ["eCryptfs"]="/mnt/ecryptfs_decrypted"
     ["fscrypt"]="/mnt/fscrypt_test/private_data"
 )
 
@@ -1061,7 +1061,7 @@ keyctl show @u 2>/dev/null || echo "Brak kluczy użytkownika w keyring"
 
 # Pełne sprzątanie środowiska testowego
 sudo umount /mnt/luks_test 2>/dev/null || true
-sudo umount /mnt/ecryptfs_upper 2>/dev/null || true
+sudo umount /mnt/ecryptfs_decrypted 2>/dev/null || true
 sudo umount /mnt/fscrypt_test 2>/dev/null || true
 sudo cryptsetup close luks_test 2>/dev/null || true
 sudo losetup -D   # Usuń wszystkie loop devices

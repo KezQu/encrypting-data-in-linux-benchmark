@@ -23,7 +23,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--size", type=int, default=512, help="Test file size in MB"
     )
-    parser.add_argument("--block", default="1M", help="Block size I/O for dd")
+    parser.add_argument(
+        "--block",
+        nargs="+",
+        default=["4K", "512K", "1M", "4M"],
+        metavar="BLOCK",
+        help="Block size(s) for dd I/O (multiple values run separate benchmarks)",
+    )
     parser.add_argument(
         "--repeat",
         type=int,
@@ -191,7 +197,7 @@ def mountpoint_exists(path: Path) -> bool:
 
 def ensure_luks_mounted(mount_point: Path) -> bool:
     if mountpoint_exists(mount_point):
-        return False
+        return True
 
     mapper_device = Path("/dev/mapper/luks_test")
     if not mapper_device.exists():
@@ -227,7 +233,7 @@ def ensure_luks_mounted(mount_point: Path) -> bool:
 
 def ensure_ecryptfs_mounted(mount_point: Path, encrypted_dir: Path) -> bool:
     if mountpoint_exists(mount_point):
-        return False
+        return True
 
     if not encrypted_dir.exists():
         print(f"[SKIPPED] eCryptfs - encrypted dir missing {encrypted_dir}")
@@ -303,17 +309,13 @@ def ensure_fscrypt_mounted(mount_point: Path) -> bool:
 
 def lock_fscrypt_directory() -> bool:
     encrypted_dir = Path("/mnt/fscrypt_test/private_data")
-    if not encrypted_dir.is_dir():
-        return False
 
     try:
         run_cmd(invoking_user_command(["fscrypt", "lock", str(encrypted_dir)]))
     except subprocess.CalledProcessError as exc:
         stderr = exc.stderr.strip() if exc.stderr else ""
-        if "already locked" in stderr:
-            return True
-        print(f"[WARN] fscrypt - cannot lock {encrypted_dir}: {stderr}")
-        return False
+        if "already locked" not in stderr:
+            print(f"[WARN] fscrypt - cannot lock {encrypted_dir}: {stderr}")
     return True
 
 
@@ -359,7 +361,6 @@ def main() -> int:
     mount_luks = Path("/mnt/luks_test")
     mount_ecryptfs = Path("/mnt/ecryptfs_decrypted")
     mount_fscrypt = Path("/mnt/fscrypt_test")
-    raw_io_dir = Path(tempfile.mkdtemp(prefix="dd_raw_io_"))
     results_file = Path(f"dd_results_{datetime.now():%Y%m%d_%H%M%S}.csv")
 
     with results_file.open("w", encoding="utf-8", newline="") as handle:
@@ -377,33 +378,36 @@ def main() -> int:
             print_header(label)
             if not set_up():
                 raise RuntimeError
-            test_write(
-                work_dir,
-                test_name,
-                args.size,
-                args.block,
-                args.repeat,
-                results_file,
-            )
-            test_read(
-                work_dir,
-                test_name,
-                args.size,
-                args.block,
-                args.repeat,
-                results_file,
-            )
+            for block_size in args.block:
+                test_write(
+                    work_dir,
+                    f"{test_name} [{block_size}]",
+                    args.size,
+                    block_size,
+                    args.repeat,
+                    results_file,
+                )
+                test_read(
+                    work_dir,
+                    f"{test_name} [{block_size}]",
+                    args.size,
+                    block_size,
+                    args.repeat,
+                    results_file,
+                )
             tear_down()
         except Exception:
             print(f"[SKIPPED] {test_name} - {work_dir} not available")
-            append_na(results_file, test_name)
+            for block_size in args.block:
+                append_na(results_file, f"{test_name} [{block_size}]")
 
     print_header("Benchmark dd")
     print(f"\tResults file: {results_file}")
     print(f"\tTest file size: {args.size} MB")
-    print(f"\tBlock size: {args.block}")
+    print(f"\tBlock sizes: {', '.join(args.block)}")
     print(f"\tNumber of repetitions: {args.repeat}")
 
+    raw_io_dir = Path(tempfile.mkdtemp(prefix="dd_raw_io_"))
     run_test(
         "1. Raw I/O - without any encryption",
         raw_io_dir,
