@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-"""Advanced I/O benchmark using fio."""
-
 from __future__ import annotations
 
 import argparse
@@ -563,7 +561,7 @@ def main() -> int:
 
     print_header("SUMMARY:")
     print_summary(summary_csv)
-    print(f"JSON and CSV results: {output_dir}/")
+    print(f"Saved in: {output_dir}/")
     print(f"Summary CSV: {summary_csv}")
 
     return 0

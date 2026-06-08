@@ -1,0 +1,33 @@
+Mechanism,Operation,Speed (MBs)
+Raw I/O [4K],WRITE,121.3
+Raw I/O [4K],READ,128.0
+Raw I/O [512K],WRITE,374.0
+Raw I/O [512K],READ,507.8
+Raw I/O [1M],WRITE,395.6
+Raw I/O [1M],READ,847.2
+Raw I/O [4M],WRITE,423.6
+Raw I/O [4M],READ,1009.4
+LUKS [4K],WRITE,98.24
+LUKS [4K],READ,93.11
+LUKS [512K],WRITE,351.9
+LUKS [512K],READ,369.1
+LUKS [1M],WRITE,385.2
+LUKS [1M],READ,649.2
+LUKS [4M],WRITE,431.7
+LUKS [4M],READ,704.1
+eCryptfs [4K],WRITE,95.86
+eCryptfs [4K],READ,110.92
+eCryptfs [512K],WRITE,213.6
+eCryptfs [512K],READ,137.0
+eCryptfs [1M],WRITE,221.9
+eCryptfs [1M],READ,135.5
+eCryptfs [4M],WRITE,229.9
+eCryptfs [4M],READ,142.3
+fscrypt [4K],WRITE,128.4
+fscrypt [4K],READ,120.5
+fscrypt [512K],WRITE,377.4
+fscrypt [512K],READ,581.9
+fscrypt [1M],WRITE,387.2
+fscrypt [1M],READ,863.9
+fscrypt [4M],WRITE,419.8
+fscrypt [4M],READ,1005.1
