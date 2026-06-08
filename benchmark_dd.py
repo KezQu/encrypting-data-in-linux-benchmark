@@ -237,6 +237,7 @@ def ensure_ecryptfs_mounted(mount_point: Path, encrypted_dir: Path) -> bool:
     try:
         subprocess.run(
             [
+                "sudo",
                 "mount",
                 "-t",
                 "ecryptfs",
@@ -254,7 +255,7 @@ def ensure_ecryptfs_mounted(mount_point: Path, encrypted_dir: Path) -> bool:
 
 
 def ensure_fscrypt_mounted(mount_point: Path) -> bool:
-    encrypted_dir = Path("/mnt/fscrypt_test/private_data")
+    encrypted_dir = mount_point / "private_data"
     source_device = Path("/dev/sdc")
 
     if not mountpoint_exists(mount_point):
@@ -275,36 +276,52 @@ def ensure_fscrypt_mounted(mount_point: Path) -> bool:
         print(f"[SKIPPED] fscrypt - missing {encrypted_dir}")
         return False
 
-    if not os.access(encrypted_dir, os.W_OK):
-        try:
-            subprocess.run(
-                invoking_user_command(
-                    ["fscrypt", "unlock", str(encrypted_dir)]
-                ),
-                check=True,
-            )
-        except subprocess.CalledProcessError as exc:
-            print(
-                f"[SKIPPED] fscrypt - cannot unlock {encrypted_dir}: {exc.stderr.strip() if exc.stderr else exc}"
-            )
-            return False
+    try:
+        subprocess.run(
+            invoking_user_command(["fscrypt", "unlock", str(encrypted_dir)]),
+            check=True,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        stderr = exc.stderr.strip() if exc.stderr else ""
+        if "already unlocked" in stderr:
+            return True
+        print(
+            f"[SKIPPED] fscrypt - cannot unlock {encrypted_dir}: {stderr or exc}"
+        )
+        return False
 
-        if not os.access(encrypted_dir, os.W_OK):
-            print(
-                f"[SKIPPED] fscrypt - {encrypted_dir} still not available after unlock"
-            )
-            return False
+    if not os.access(encrypted_dir, os.W_OK):
+        print(
+            f"[SKIPPED] fscrypt - {encrypted_dir} still not available after unlock"
+        )
+        return False
 
     return True
 
 
-def unmount_if_needed(path: Path, mounted_here: bool) -> None:
-    if not mounted_here:
-        return
+def lock_fscrypt_directory() -> bool:
+    encrypted_dir = Path("/mnt/fscrypt_test/private_data")
+    if not encrypted_dir.is_dir():
+        return False
 
+    try:
+        run_cmd(invoking_user_command(["fscrypt", "lock", str(encrypted_dir)]))
+    except subprocess.CalledProcessError as exc:
+        stderr = exc.stderr.strip() if exc.stderr else ""
+        if "already locked" in stderr:
+            return True
+        print(f"[WARN] fscrypt - cannot lock {encrypted_dir}: {stderr}")
+        return False
+    return True
+
+
+def unmount_if_needed(path: Path) -> bool:
     run_cmd(
         ["sudo", "umount", str(path)],
     )
+    return True
 
 
 def print_results(results_file: Path) -> None:
@@ -401,7 +418,7 @@ def main() -> int:
         lambda: (
             ensure_luks_mounted(mount_luks) and mountpoint_exists(mount_luks)
         ),
-        lambda: unmount_if_needed(mount_luks, True),
+        lambda: unmount_if_needed(mount_luks),
     )
     run_test(
         "3. eCryptfs (Per-file encryption)",
@@ -413,14 +430,16 @@ def main() -> int:
             )
             and mountpoint_exists(mount_ecryptfs)
         ),
-        lambda: unmount_if_needed(mount_ecryptfs, True),
+        lambda: unmount_if_needed(mount_ecryptfs),
     )
     run_test(
         "4. fscrypt (Per-file encryption)",
         mount_fscrypt,
         "fscrypt",
         lambda: ensure_fscrypt_mounted(mount_fscrypt),
-        lambda: unmount_if_needed(mount_fscrypt, True),
+        lambda: (
+            lock_fscrypt_directory() and unmount_if_needed(mount_fscrypt),
+        ),
     )
 
     print_header("RESULTS:")
