@@ -1,5 +1,5 @@
 # Fdb version 3
-["pdflatex"] 1781038929 "/home/jakub/private/encoding-data-in-linux-benchmark/sprawozdanie.tex" "sprawozdanie.pdf" "sprawozdanie" 1781038931
+["pdflatex"] 1781122247 "/home/jakub/private/encoding-data-in-linux-benchmark/sprawozdanie.tex" "sprawozdanie.pdf" "sprawozdanie" 1781122249
   "/etc/texmf/web2c/texmf.cnf" 1781020664 475 c0e671620eb5563b2130f56340a5fde8 ""
   "/home/jakub/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/ecbx1000.600pk" 1781023027 25396 03fd17dd25d3dcdde953eda32752eec9 ""
   "/home/jakub/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/ecbx1200.600pk" 1781021934 31928 ce8db63b450519b58c5dc99b6050c624 ""
@@ -14,7 +14,7 @@
   "/home/jakub/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/ecti1000.600pk" 1781021934 31872 8e5f861427d8308ff1a92c44ed1f19a1 ""
   "/home/jakub/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/ectt1000.600pk" 1781021791 20008 173cf1643cb00c03a57c3856ae5b0560 ""
   "/home/jakub/.texlive2021/texmf-var/fonts/pk/ljfour/jknappen/ec/ectt1200.600pk" 1781022540 24132 ebb12b4e8795c31878af8318e979ed7b ""
-  "/home/jakub/private/encoding-data-in-linux-benchmark/sprawozdanie.tex" 1781038928 20956 7d2f9e23f82c402459e6c677aad3f5b7 ""
+  "/home/jakub/private/encoding-data-in-linux-benchmark/sprawozdanie.tex" 1781122247 34094 557d8fbe2fbeb6a282c1b0bd05057947 ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/jknappen/ec/ecbx1000.tfm" 1136768653 3584 2d666ecf6d466d8b007246bc2f94d9da ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/jknappen/ec/ecbx1200.tfm" 1136768653 3584 402da0b29eafbad07963b1224b222f18 ""
@@ -186,9 +186,9 @@
   "fio_summary_plots/fio_summary_cpu.png" 1781036823 122253 7ceab3ed4a37a12be26025ad44c1cff4 ""
   "fio_summary_plots/fio_summary_iops.png" 1781036821 100307 8e959efcecd5698c93ad171bf9be9d93 ""
   "fio_summary_plots/fio_summary_latency.png" 1781036822 103181 cacf665ba0e3e75c017e094154bdc7bd ""
-  "sprawozdanie.aux" 1781038931 5949 21ada3be9d1251a28161294e42b203af "pdflatex"
-  "sprawozdanie.out" 1781038931 1337 c30688106b562c4a9b865824c4b80edf "pdflatex"
-  "sprawozdanie.tex" 1781038928 20956 7d2f9e23f82c402459e6c677aad3f5b7 ""
+  "sprawozdanie.aux" 1781122248 7658 ce673f3ad5faeb9240db8e9c05590398 "pdflatex"
+  "sprawozdanie.out" 1781122248 4154 55fbc2fff4729b7e3b36b435bcdc886c "pdflatex"
+  "sprawozdanie.tex" 1781122247 34094 557d8fbe2fbeb6a282c1b0bd05057947 ""
   (generated)
   "sprawozdanie.aux"
   "sprawozdanie.log"
