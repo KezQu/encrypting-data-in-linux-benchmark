@@ -173,6 +173,63 @@ W przypadku pełnej kompromitacji systemu (dostęp root lub wykonanie dowolnego 
 fscrypt nie zapewnia ochrony danych chronionych aktywnymi kluczami, choć klucze sprzętowe mogą
 uniemożliwić eksfiltrację kluczy w formie użytecznej po wyłączeniu systemu.
 
+\section{Wdrożenie poszczególnych mechanizmów szyfrowania}
+Na potrzeby przeprowadzenia testów wydajnościowych wspomniane mechanizmy szyfrowania zostały
+wdrożone w środowisku testowym składającym się z maszyny wirtualnej z systemem Ubuntu Server
+24.04 LTS o parametrach:
+\begin{itemize}
+    \item 4GB RAM
+    \item 4 rdzenie
+    \item trzy partycje o rozmiarach 20 GB (partycja główna zawierająca główny system plików),
+    5GB (partycja zaszyfrowana przy pomocy LUKS), 5GB (partycja przeznaczona dla fscrypt)
+\end{itemize}
+
+\subsection{LUKS}
+Dla stworzenia partycji zaszyfrowanej przy pomocy LUKS, został użyty uprzednio stworzony dysk
+wirtualny (/dev/sdb). Wdrożenie zaszyfrowanego wolumenu odbyło się przy pomocy następujących komend:
+\begin{itemize}
+    \item Wstępna inicjalizacja LUKS - \texttt{sudo cryptsetup luksFormat --type luks2 --cipher
+    aes-xts-plain64 --key-size 512 --hash sha256 --pbkdf argon2id --iter-time 2000
+    --verify-passphrase /dev/sdb}
+    \item Otwarcie zaszyfrowanej partycji - \texttt{sudo cryptsetup open /dev/sdb luks\_test}
+    \item Stworzenie systemu plików wewnątrz partycji - \texttt{sudo mkfs.ext4 -L luks\_vol
+    /dev/mapper/luks\_test}
+    \item Stworzenie punktu montowania dla zaszyfrowanej partycji\texttt{sudo mkdir -p
+    /mnt/luks\_test}
+    \item Zmontowanie zaszyfrowanego systemu plików - \texttt{sudo mount /dev/mapper/luks\_test
+     /mnt/luks\_test}
+\end{itemize}
+
+\subsection{eCryptfs}
+Stworzenie środowiska zawierającego zaszyfrowane pliki przy pomocy eCryptfs wymagało następujących
+kroków:
+\begin{itemize}
+    \item Stworzenie katalogu przechowującego zaszyfrowane pliki - \texttt{sudo mkdir -p
+    /mnt/ecryptfs\_encrypted}
+    \item Stworzenie katalogu przeznaczonego na odszyfrowane pliki - \texttt{sudo mkdir -p
+    /mnt/ecryptfs\_decrypted}
+    \item Inicjalizacja eCryptfs - \texttt{sudo mount -t ecryptfs /mnt/ecryptfs\_encrypted
+    /mnt/ecryptfs\_decrypted -o ecryptfs\_cipher=aes, ecryptfs\_key\_bytes=32,
+    ecryptfs\_passthrough=n, \\ecryptfs\_enable\_filename\_crypto=y}
+\end{itemize}
+
+\subsection{fscrypt}
+Na potrzeby stworzenia partycji obsługującej szyfrowanie za pomocą fscrypt stworzony został
+dysk wirtualny /dev/sdc. Konfiguracja fscrypt wymagała następujących kroków:
+\begin{itemize}
+    \item Stworzenie systemu plików z obsługą fscrypt - \texttt{sudo mkfs.ext4 -O encrypt -L
+    fscrypt\_vol /dev/sdc}
+    \item Stworzenie punktu montowania - \texttt{sudo mkdir -p /mnt/fscrypt\_test}
+    \item Zmontowanie partycji z obsługa fscrypt - \texttt{sudo mount /dev/sdc /mnt/fscrypt\_test}
+    \item Inicjalizacja fscrypt na poziomie systemu Linux - \texttt{sudo fscrypt setup}
+    \item Inicjalizacja wewnątrz systemu plików z obsługą fscrypt - \texttt{fscrypt setup
+    /mnt/fscrypt\_test}
+    \item Stworzenie katalogu, który następnie zostanie zaszyfrowany - \texttt{mkdir -p
+    /mnt/fscrypt\_test/private\_data}
+    \item Zaszyfrowanie uprzednio stworzonego katalogu przy pomocy fscrypt - \texttt{fscrypt
+    encrypt \\
+    /mnt/fscrypt\_test/private\_data --source=custom\_passphrase}
+\end{itemize}
 
 \section{Testy wydajnościowe}
 Do testów porównawczych został dodatkowo zmierzony czas wykonywania operacji wejścia/wyjścia
