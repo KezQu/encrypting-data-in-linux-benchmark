@@ -2,7 +2,7 @@
 
 %%%%%%%% CREATE DOCUMENT STRUCTURE %%%%%%%%
 %% Language and font encodings
-\usepackage[polish]{babel}
+\usepackage[polish, provide=*]{babel}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 %\usepackage{subfig}
@@ -52,7 +52,7 @@ Szyfrowanie danych stanowi jeden z fundamentalnych elementów ochrony informacji
 komputerowych. W środowiskach Linux dostępnych jest kilka mechanizmów szyfrowania, różniących
 się poziomem abstrakcji, sposobem zarządzania kluczami oraz charakterystyką wydajnościową.
 Analiza obejmuje trzy rozwiązania: LUKS (Linux Unified Key Setup), realizujący szyfrowanie
-na poziomie urządzenia blokowego za pośrednictwem dm-crypt; eCryptfs, będący kryptograficznym
+na poziomie urządzenia blokowego za pośrednictwem dm-crypt. eCryptfs, będący kryptograficznym
 systemem plików działającym jako nakładka na zwykły system plików, oraz fscrypt, zintegrowany
 bezpośrednio z systemem plików na poziomie jądra. Każde z tych rozwiązań oferuje odmienny model
 bezpieczeństwa, inaczej reaguje na zagrożenia offline i online, a także wykazuje różną
@@ -69,7 +69,7 @@ użycia.
 Jest to sposób szyfrowania dysków, domyślnie przeznaczony dla systemów Linux. Szyfrowanie
 za pomocą LUKS opiera się na szyfrowaniu urządzeń blokowych (ang. block device). Pozwala to
 na zaszyfrowanie dowolnego systemu plików, uwzględniając partycje SWAP. LUKS stanowi warstwę
-zarządzania kluczami dla dm-crypt, zapewniając standaryzowany format nagłówka na urządzeniu.
+zarządzania kluczami dla dm-crypt, zapewniając ustandaryzowany format nagłówka na urządzeniu.
 Każdy z zaszyfrowanych wolumenów zawiera niezaszyfrowany nagłówek, który w wersji LUKS2
 pozwala na przechowywanie do 32 kluczy dostępu do danych. Szyfrowanie danych w ramach LUKS
 jest wieloetapowe. Klucz główny szyfruje dane, a klucze użytkowników szyfrują klucz główny,
@@ -79,7 +79,7 @@ systemu operacyjnego oraz na automatyczne deszyfrowanie danych podczas uruchamia
 operacyjnego. Szyfrowanie całych partycji charakteryzuje się niewielkim narzutem związanym
 z zapisem oraz odczytem danych.
 
-\subsubsection{Model zagrożeń i ochrona}
+\subsubsection{Model ochrony oraz możliwe zagrożenia}
 LUKS zapewnia pełną ochronę poufności danych w przypadku ataków offline, takich jak fizyczna
 kradzież dysku lub dostęp do odmontowanej partycji zaszyfrowanej, pod warunkiem użycia silnego
 hasła lub klucza. W scenariuszu offline atakujący nie ma dostępu do odszyfrowanych danych bez
@@ -115,9 +115,9 @@ nazwy pliku z 255 bajtów do 143 bajtów. Warto dodać, że eCryptfs nie jest ak
 od 2016 roku i projekt jest uznawany za przestarzały (m.in. Ubuntu oficjalnie wycofało go
 jako mechanizm szyfrowania katalogów domowych).
 
-\subsubsection{Model zagrożeń i ochrona}
+\subsubsection{Model ochrony oraz możliwe zagrożenia}
 eCryptfs zapewnia poufność zawartości plików oraz przy włączonej opcji
-\texttt{ecryptfs\_enable\_filename\_crypto} również nazw plików. W scenariuszach ataku
+\texttt{ecryptfs\_enable\_filename\_crypto} również nazw plików w scenariuszach ataku
 offline, takich jak fizyczny dostęp do nośnika danych lub kradzież urządzenia.
 Ponieważ metadane kryptograficzne przechowywane są w nagłówku każdego pliku, ochrona jest
 zachowana nawet przy przeniesieniu pojedynczego pliku na inny nośnik, ponieważ
@@ -152,26 +152,21 @@ w pamięci podręcznej zaszyfrowanej oraz odszyfrowanej wersji pliku. Dodatkową
 używania fscrypt w stosunku do eCryptfs jest brak narzutu związanego z metadanymi w nazwie
 pliku, co pozwala na wykorzystanie pełnych 255 bajtów na nazwę pliku.
 
-\subsubsection{Model zagrożeń i ochrona}
+\subsubsection{Model ochrony oraz możliwe zagrożenia}
 fscrypt chroni poufność zawartości plików oraz nazw plików w przypadku ataków offline,
-takich jak fizyczny dostęp do urządzenia pamięci masowej, zakładając użycie silnego klucza
-szyfrującego. Mechanizm ten nie chroni jednak metadanych plików (rozmiary, uprawnienia,
-znaczniki czasu) ani informacji o strukturze danych (lokalizacja bloków niezaalokowanych).
-fscrypt nie gwarantuje również ochrony przed manipulacją systemu plików w trybie offline
-przed autoryzowanym dostępem użytkownika.
+takich jak fizyczny dostęp do pamięci urządzenia, zakładając użycie silnego klucza
+szyfrującego. Mechanizm ten nie chroni jednak metadanych plików (rozmiary, czy uprawnienia) ani
+informacji o strukturze danych. fscrypt nie gwarantuje również ochrony przed manipulacją systemu
+plików w trybie offline przed autoryzowanym dostępem użytkownika.
 
 W kontekście ataków online, fscrypt oferuje ograniczoną ochronę. Po dodaniu klucza
 szyfrującego do jądra, mechanizm ten nie ukrywa zawartości ani nazw plików przed innymi
 użytkownikami w systemie. Ochrona dostępu powinna być realizowana przez standardowe
-mechanizmy kontroli dostępu (uprawnienia plików, ACL, LSM). Atakujący, który uzyska
-możliwość odczytu pamięci jądra, może skompromitować wszystkie aktywne klucze fscrypt,
-chyba że zastosowane są klucze sprzętowe (\textit{hardware-wrapped keys}). W takim przypadku
-klucze główne oraz klucze szyfrowania zawartości pozostają chronione przed kompromitacją pamięci
-jądra.
+mechanizmy kontroli dostępu takie jak uprawnienia plików. Atakujący, który uzyska
+możliwość odczytu pamięci jądra, może skompromitować wszystkie aktywne klucze fscrypt.
 
 W przypadku pełnej kompromitacji systemu (dostęp root lub wykonanie dowolnego kodu w jądrze),
-fscrypt nie zapewnia ochrony danych chronionych aktywnymi kluczami, choć klucze sprzętowe mogą
-uniemożliwić eksfiltrację kluczy w formie użytecznej po wyłączeniu systemu.
+fscrypt nie zapewnia ochrony danych chronionych aktywnymi kluczami.
 
 \section{Wdrożenie poszczególnych mechanizmów szyfrowania}
 Na potrzeby przeprowadzenia testów wydajnościowych wspomniane mechanizmy szyfrowania zostały
@@ -194,7 +189,7 @@ wirtualny (/dev/sdb). Wdrożenie zaszyfrowanego wolumenu odbyło się przy pomoc
     \item Otwarcie zaszyfrowanej partycji - \texttt{sudo cryptsetup open /dev/sdb luks\_test}
     \item Stworzenie systemu plików wewnątrz partycji - \texttt{sudo mkfs.ext4 -L luks\_vol
     /dev/mapper/luks\_test}
-    \item Stworzenie punktu montowania dla zaszyfrowanej partycji\texttt{sudo mkdir -p
+    \item Stworzenie punktu montowania dla zaszyfrowanej partycji - \texttt{sudo mkdir -p
     /mnt/luks\_test}
     \item Zmontowanie zaszyfrowanego systemu plików - \texttt{sudo mount /dev/mapper/luks\_test
      /mnt/luks\_test}
@@ -327,9 +322,9 @@ szyfrowania.
 \subsection{Testy wykorzystujące \texttt{fio}}
 Narzędzie \texttt{fio} pozwala na bardziej złożone testy wydajności wybranego mechanizmu
 szyfrowania plików dzięki jednoczesnym operacjom wejścia i wyjścia oraz na między innymi
-wybranie sposobu kopiowania plików (sekwencyjne \& losowe). W ramach benchmarków
+wybranie sposobu kopiowania plików (sekwencyjne, czy losowe). W ramach benchmarków
 przetestowano kopiowanie sekwencyjne i losowe bloków o różnej wielkości oraz
-jednoczesne wykonywanie operacji I/O o równym (50/50) rozłożeniu oraz nierównomiernym (70/30).
+jednoczesne wykonywanie operacji I/O o równym (50/50) oraz nierównomiernym (70/30) rozłożeniu.
 
 
 \begin{table}[H]
@@ -581,7 +576,7 @@ jednoczesne wykonywanie operacji I/O o równym (50/50) rozłożeniu oraz nierów
 W przypadku wyników otrzymanych dla fscrypt oraz eCryptfs, warto zwrócić uwagę na wykorzystanie
 pamięci podręcznej w testach. Pomimo zastosowania flagi \texttt{invalidate=1} w konfiguracji
 testów \texttt{fio} oraz czyszczenia bufora jądra przed każdym uruchomieniem benchmarku przy
-użyciu poleceń \texttt{sync} oraz \texttt{echo 3 > /proc/sys/vm/drop\_caches}, wyniki dla
+użyciu poleceń \texttt{sync} oraz \\\texttt{echo 3 > /proc/sys/vm/drop\_caches}, wyniki dla
 fscrypt i eCryptfs wskazują na silny wpływ pamięci RAM.
 Dla fscrypt i eCryptfs odczyt danych osiąga przepustowość rzędu kilku, bądź kilkunastu
 gigabajtow na sekundę. Otrzymane wartości znacznie przewyższają możliwości wykorzystanego
@@ -591,7 +586,7 @@ sekundę wskazują, na przechowywanie danych w pamięci RAM oraz bezpośredni z 
 Natomiast wyniki otrzymane dla LUKS są bardzo zbliżone do wyników bez szyfrowania. Warto
 zauważyć, że zużycie CPU jest bardzo niskie w trybie systemowym w porównaniu do pozostałych
 metod szyfrowania. W testach mieszanych (70\%R/30\%W oraz 50\%R/50\%W), LUKS i brak szyfrowania
-osiągają zbliżone wyniki w granicach, co potwierdza spójność wyników dla tego mechanizmu.
+osiągają zbliżone wyniki, co potwierdza spójność wyników dla tego mechanizmu.
 
 \subsection{Podsumowanie}
 Wyniki benchmarków pozwalają stwierdzić, że LUKS jest mechanizmem szyfrowania o najmniejszym
@@ -601,9 +596,9 @@ przepustowość dla dużych operacji, pomimo że wyniki dla małych bloków są 
 buforowania danych. Wyniki fscrypt w zakresie operacji odczytu są silnie powiązane z
 wykorzystaniem pamięci cache i nie odzwierciedlają wydajności dyskowej. Jedynie wyniki zapisu
 oraz losowego odczytu przedstawiają realne osiągi oraz wydajność mechanizmu.
-Mimo zastosowania sposobów czyszczenia pamięci podręcznej, fscrypt skutecznie
-ponownie wypełnia cache podczas operacji, co uniemożliwia wiarygodny pomiar wydajności
-dyskowej dla tego mechanizmu w zastosowanej konfiguracji testów.
+Mimo zastosowania sposobów czyszczenia pamięci podręcznej, fscrypt oraz eCrypts wykorzystuje
+pamięć RAM, co uniemożliwia wiarygodny pomiar wydajności dyskowej dla tego mechanizmu w
+zastosowanej konfiguracji testów.
 
 
 \paragraph{Operacje na małych blokach (4K) kontra dużych blokach (1M).}
@@ -619,7 +614,7 @@ odzwierciedlają rzeczywistej wydajności dyskowej.
 
 Poniższe rekomendacje użycia poszczególnych mechanizmów szyfrowania oparte są na
 otrzymanych wynikach wydajności oraz na podstawie charakterystyk poszczególnych metod oraz
-modeli zagrożeń.
+modeli ochrony.
 
 \subsection{Szyfrowanie dysku systemowego lub partycji danych}
 
@@ -637,7 +632,7 @@ laptopów, stacji roboczych oraz serwerów.
 Rekomendowanym rozwiązaniem jest fscrypt. W odróżnieniu od LUKS, fscrypt pozwala
 na szyfrowanie na poziomie katalogu, co umożliwia niezależne szyfrowanie przestrzeni
 różnych użytkowników bez konieczności tworzenia oddzielnych partycji. fscrypt jest natywnie
-zintegrowany z popularnymi systemami plików (ext4, f2fs, UBIFS) i aktywnie rozwijany.
+zintegrowany z popularnymi systemami plików takimi jak ext4 i jest aktywnie rozwijany.
 W testach \texttt{dd} wyniki zapisu dla fscrypt są zbliżone do LUKS i operacji bez szyfrowania
 dla większych bloków. Rozwiązanie to zastępuje przestarzały eCryptfs, który od 2016 roku nie
 jest aktywnie rozwijany i został wycofany przez Ubuntu jako domyślny mechanizm szyfrowania
@@ -656,7 +651,7 @@ co jest rozwiązaniem mniej elastycznym i wprowadza niepotrzebny narzut.
 \subsection{Ochrona pojedynczych plików lub przenośnych nośników danych}
 
 W scenariuszu wymagającym przenoszenia zaszyfrowanych plików między różnymi systemami
-bez wspólnej infrastruktury kluczy, eCryptfs oferuje unikalną właściwość: metadane
+bez wspólnej infrastruktury kluczy, eCryptfs oferuje unikalną właściwość. Metadane
 kryptograficzne przechowywane są w nagłówku każdego pliku, co pozwala na odszyfrowanie
 pojedynczego pliku na dowolnym systemie posiadającym odpowiedni klucz główny. Należy jednak
 uwzględnić istotne ograniczenia tego rozwiązania, takie jak znaczący narzut obliczeniowy,
@@ -679,16 +674,16 @@ wykazuje wyraźny spadek przepustowości we wszystkich testach \texttt{dd}.
 
 Wyniki testów \texttt{fio} potwierdzają dominację LUKS pod względem spójności wyników
 z bazowym pomiarem bez szyfrowania. Wartości przepustowości i opóźnień dla LUKS pozostają
-na poziomie bliskim wyników czystego systemu plików. W przypadku eCryptfs odnotowano wysokie
-obciążenie CPU (powyżej 80\% sys) oraz znaczne opóźnienia przy operacjach na dużych blokach.
-Wyniki fscrypt i eCryptfs w zakresie operacji odczytu są silnie zakłócone przez buforowanie
-danych w pamięci RAM, co uniemożliwia wiarygodny pomiar rzeczywistej wydajności dyskowej dla
-tych mechanizmów w zastosowanej konfiguracji testów.
+na poziomie bliskim wyników systemu plików bez szyfrowania. W przypadku eCryptfs odnotowano
+wysokie obciążenie CPU (powyżej 80\% sys) oraz znaczne opóźnienia przy operacjach na dużych
+blokach. Wyniki fscrypt i eCryptfs w zakresie operacji odczytu są silnie zakłócone przez
+buforowanie danych w pamięci RAM, co uniemożliwia wiarygodny pomiar rzeczywistej wydajności
+dyskowej dla tych mechanizmów w zastosowanej konfiguracji testów.
 \\\\
 Wszystkie trzy mechanizmy zapewniają ochronę poufności danych w scenariuszach ataków offline.
 LUKS chroni całą partycję, w tym metadane systemu plików i strukturę katalogów. fscrypt
 i eCryptfs chronią zawartość plików oraz opcjonalnie ich nazwy, lecz nie metadane systemu
-plików (rozmiary, uprawnienia, znaczniki czasu). Żaden z analizowanych mechanizmów nie
+plików (rozmiary, czy uprawnienia). Żaden z analizowanych mechanizmów nie
 zapewnia ochrony przed atakami online z uprawnieniami root ani  gdy zaszyfrowane pliki są
 zamontowane lub dostępne.
 
